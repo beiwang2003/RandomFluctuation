@@ -6,7 +6,7 @@
 #include "CLHEP/Random/RandPoissonQ.h"
 #include "CLHEP/Units/GlobalPhysicalConstants.h"
 #include "CLHEP/Units/GlobalSystemOfUnits.h"
-#include "SimTracker/Common/interface/SiG4UniversalFluctuation.h"
+#include "SiG4UniversalFluctuation.h"
 #include "vdt/log.h"
 #include <cmath>
 
