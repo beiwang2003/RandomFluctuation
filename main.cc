@@ -80,6 +80,12 @@ int main(){
     engine.setSeeds(seed, 4);
     const long *seed_test = engine.getSeeds();
 
+    if (i<5) {
+      std::cout<<mom_i<<" "<<particleMass_i<<" "<<deltaCutoff_i<<" "<<seglen_i<<" "<<segeloss_i<<std::endl;
+      std::cout<<seed_test[0]<<" "<<seed_test[1]<<" "<<seed_test[2]<<" "<<seed_test[3]<<std::endl;
+      std::cout<<NumberOfSegs<<" ";
+    }
+
     for (int j = 0; j < NumberOfSegs; j++) {
       // The G4 routine needs momentum in MeV, mass in MeV, delta-cut in MeV,
     // track segment length in mm, segment eloss in MeV
@@ -87,11 +93,12 @@ int main(){
     // the cutoff is sometimes redefined inside, so fix it.
       double tmp = flucture.SampleFluctuations(mom_i, particleMass_i, deltaCutoff_i, seglen_i, segeloss_i, &engine) / 1000.;
       sum_i += flucture.SampleFluctuations(mom_i, particleMass_i, deltaCutoff_i, seglen_i, segeloss_i, &engine) / 1000.;
-      if (i==0) {
-	std::cout<<"j="<<j<<"mom="<<mom_i<<"particleMass="<<particleMass_i<<"deltaCutoff="<<deltaCutoff_i<<"segLen="<<seglen_i<<"segeloss="<<segeloss_i<<std::endl;
-	std::cout<<"seed_test="<<seed_test[0]<<" "<<seed_test[1]<<" "<<seed_test[2]<<" "<<seed_test[3]<<"tmp="<<tmp<<std::endl;
+      if (i<5) {
+	std::cout<<tmp;
       }
     }
+
+    if (i<5) std::cout<<std::endl;
     sum_fun[i] = sum_i;
 
   }
