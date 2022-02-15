@@ -81,8 +81,8 @@ int main(){
     const long *seed_test = engine.getSeeds();
 
     if (i<5) {
-      std::cout<<mom_i<<" "<<particleMass_i<<" "<<deltaCutoff_i<<" "<<seglen_i<<" "<<segeloss_i<<std::endl;
       std::cout<<seed_test[0]<<" "<<seed_test[1]<<" "<<seed_test[2]<<" "<<seed_test[3]<<std::endl;
+      std::cout<<NumberOfSegs<<" "<<mom_i<<" "<<particleMass_i<<" "<<deltaCutoff_i<<" "<<seglen_i<<" "<<segeloss_i<<std::endl;
       std::cout<<NumberOfSegs<<" ";
     }
 
@@ -92,7 +92,7 @@ int main(){
     // Returns fluctuated eloss in MeV
     // the cutoff is sometimes redefined inside, so fix it.
       double tmp = flucture.SampleFluctuations(mom_i, particleMass_i, deltaCutoff_i, seglen_i, segeloss_i, &engine) / 1000.;
-      sum_i += flucture.SampleFluctuations(mom_i, particleMass_i, deltaCutoff_i, seglen_i, segeloss_i, &engine) / 1000.;
+      sum_i += tmp;
       if (i<5) {
 	std::cout<<tmp;
       }
