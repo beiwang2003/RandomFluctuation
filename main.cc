@@ -57,6 +57,7 @@ int main(){
     }
   }
   double *fluct = (double *)malloc(SIZE * maxNumSegs * sizeof(double));
+  double *fluct_h = (double *)malloc(SIZE * maxNumSegs * sizeof(double));
   for (int i=0; i<SIZE * maxNumSegs; i++) fluct[i] = 0.0;
 
 #ifdef USE_GPU
@@ -146,6 +147,17 @@ int main(){
 
   getSamples(seed_d, numSegs_d, mom_d, particleMass_d, deltaCutoff_d, seglen_d, segeloss_d, states, fluct_d, SIZE);
 
+  CUDA_RT_CALL(cudaMemcpy(fluct_h, fluct_d, SIZE * maxNumSegs * sizeof(double), cudaMemcpyDeviceToHost));
+
+  cudaFree(deltaCutoff_d);
+  cudaFree(mom_d);
+  cudaFree(particleMass_d);
+  cudaFree(seglen_d);
+  cudaFree(segeloss_d);
+  cudaFree(numSegs_d);
+  cudaFree(seed_d);
+  cudaFree(fluct_d);
+
 #else
   for (int i=0; i<SIZE; i++) {
     double mom_i = mom[i];
@@ -176,18 +188,8 @@ int main(){
   }
 #endif
 
-#ifdef USE_GPU
-  cudaFree(deltaCutoff_d);
-  cudaFree(mom_d);
-  cudaFree(particleMass_d);
-  cudaFree(seglen_d);
-  cudaFree(segeloss_d);
-  cudaFree(numSegs_d);
-  cudaFree(seed_d);
-  cudaFree(fluct_d);
-#endif
-
   free(fluct);
+  free(fluct_h);
   free(deltaCutoff);
   free(mom);
   free(particleMass);

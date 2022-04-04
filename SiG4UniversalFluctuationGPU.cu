@@ -8,18 +8,18 @@ __global__ void init_states(const long* seed_d, curandState_t* states, int SIZE)
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
   if (gid < SIZE) {
   /* we have to initialize the state */
-    curand_init(seed_d[gid], /* the seed can be the same for each core, here we pass the time in from the CPU */
-		gid, /* the sequence number should be different for each core (unless you want all
-			cores to get the same sequence of numbers for some reason - use thread id! */
+    curand_init(seed_d[gid],
+		gid, /* the sequence number should be different for each thread */
 		0, /* the offset is how much extra we advance in the sequence for each call, can be 0 */
 		&states[gid]);
   }
 }
 
-/* replace random number generator function calls from CLHEP with curand
+/* replace random number generator function calls from CLHEP with curand. For more info about random number generator from curand library, see: https://docs.nvidia.com/cuda/curand/device-api-overview.html#distributions
 E.g.: replace CLHEP::RandFlat with curand_uniform_double (return double between 0.0-1.0)
-      replace CLHEP::RandGaussQ with curand_log_normal_double (return double bewteen 0.0-1.0)
+      replace CLHEP::RandGaussQ with curand_log_normal_double (This function returns a double log-normally distributed float based on a normal distribution with the given mean and standard deviation)
       replace CLHEP::RandPoissonQ with curand_poisson (return unsigned int)
+For more info about random number generator from curand library, see: https://docs.nvidia.com/cuda/curand/device-api-overview.html#distributions
       replace vdt::fast_log with log
 Note: the return value is scaled with 0.001 to avoid /1000. operation outside the function call in the CPU version
 */
@@ -282,4 +282,6 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 
     sampleFluctuations_kernel<<<nblocks, nthreads>>>(numSegs_d, mom_d, particleMass_d, deltaCutoff_d, seglen_d, segeloss_d, states, fluct_d, SIZE);
     CUDA_RT_CALL(cudaGetLastError());
+
+    cudaDeviceSynchronize();
   }
