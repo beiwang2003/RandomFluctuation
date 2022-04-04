@@ -78,7 +78,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
   // for Gauusian fluct. has been changed
   //
   if ((particleMass > electron_mass_c2) && (meanLoss >= minNumberInteractionsBohr * tmax)) {
-    std::cout << "if one\n";
+    //std::cout << "if one\n";
     double massrate = electron_mass_c2 / particleMass;
     double tmaxkine = 2. * electron_mass_c2 * beta2 * gam2 / (1. + massrate * (2. * gam + massrate));
     if (tmaxkine <= 2. * tmax) {
@@ -89,7 +89,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
         double x;
         do {
           loss = twomeanLoss * CLHEP::RandFlat::shoot(engine);
-	  std::cout << "wml" << loss << " " << twomeanLoss << endl;
+	  //std::cout << "wml" << loss << " " << twomeanLoss << endl;
           x = (loss - meanLoss) / siga;
         } while (1.0 - 0.5 * x * x < CLHEP::RandFlat::shoot(engine));
       } else {
@@ -107,7 +107,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
 
   double w1 = tmax / ipotFluct;
   double w2 = vdt::fast_log(2. * electron_mass_c2 * beta2 * gam2) - beta2;
-  std::cout<< "w2 " << w2 << std::endl;
+  //std::cout<< "w2 " << w2 << std::endl;
   if (w2 > ipotLogFluct) {
     double C = meanLoss * (1. - rateFluct) / (w2 - ipotLogFluct);
     a1 = C * f1Fluct * (w2 - e1LogFluct) / e1Fluct;
@@ -126,7 +126,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
     a3 = rate * meanLoss * (tmax - ipotFluct) / (ipotFluct * tmax * vdt::fast_log(w1));
   }
   double suma = a1 + a2 + a3;
-  std::cout << "suma " << suma << std::endl;
+  //std::cout << "suma " << suma << std::endl;
   // Glandz regime
   //
   if (suma > sumalim) {
@@ -139,7 +139,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
       } else {
         p1 = double(CLHEP::RandPoissonQ::shoot(engine, a1));
       }
-      std::cout << "p1 "<< p1<< std::endl;
+      //std::cout << "p1 "<< p1<< std::endl;
       // excitation type 2
       if (a2 > alim) {
         siga = sqrt(a2);
@@ -149,7 +149,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
       }
 
       loss = p1 * e1Fluct + p2 * e2Fluct;
-      std::cout << "loss "<< loss<< std::endl;
+      //std::cout << "loss "<< loss<< std::endl;
 
       // smearing to avoid unphysical peaks
       if (p2 > 0.)
@@ -168,7 +168,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
       } else {
         p3 = double(CLHEP::RandPoissonQ::shoot(engine, a3));
       }
-      std::cout << "p3 " << std::endl;
+      //std::cout << "p3 " << std::endl;
       double lossc = 0.;
       if (p3 > 0) {
         double na = 0.;
@@ -200,7 +200,7 @@ double SiG4UniversalFluctuation::SampleFluctuations(const double momentum,
 
     return loss;
   }
-  std::cout << "verysmall \n";
+  //std::cout << "verysmall \n";
   // suma < sumalim;  very small energy loss;
   a3 = meanLoss * (tmax - e0) / (tmax * e0 * vdt::fast_log(tmax / e0));
   if (a3 > alim) {
