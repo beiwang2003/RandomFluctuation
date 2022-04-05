@@ -42,12 +42,15 @@ __global__ void init_states(const long* seed_d, curandState_t* states, int SIZE)
 }
 
 /* replace random number generator function calls from CLHEP with curand. For more info about random number generator from curand library, see: https://docs.nvidia.com/cuda/curand/device-api-overview.html#distributions
-E.g.: replace CLHEP::RandFlat with curand_uniform_double (return double between 0.0-1.0)
+E.g.: replace CLHEP::RandFlat with curand_uniform_double (return double between 0.0 and 1.0)
       replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
       replace CLHEP::RandPoissonQ with curand_poisson (return unsigned int)
 For more info about random number generator from curand library, see: https://docs.nvidia.com/cuda/curand/device-api-overview.html#distributions
       replace vdt::fast_log with log
-Note: the return value is scaled with 0.001 to avoid /1000. operation outside the function call in the CPU version
+Note1: the return value is scaled with 0.001 to avoid /1000. operation outside the function call in the CPU version
+Note2: return statement in C++ is replaced with countinue in CUDA
+Note3: large variation of numSegs value (up to 3000) could potential cause load imbalance issue
+Note4: use -use_fast_math in nvcc compiler flag for less accurate but more efficient math operations
 */
 __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 					  const double *mom_d,
