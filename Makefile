@@ -16,7 +16,7 @@ ifeq ($(COMPILER), gnu)
 	CC = g++
 	CXXFLAGS += -std=c++11 -O3 -fopenmp -march=native \
 	  -mprefer-vector-width=512 -fopt-info-vec -g \
-	  -I$(CUDA_PATH)/include -I$(CLHEP_PATH)/include -DUSE_GPU
+	  -I$(CUDA_PATH)/include -I$(CLHEP_PATH)/include -DUSE_GPU -DGPU_TIMER
 	LDFLAGS += -std=c++11 -O3 -fopenmp -march=native \
 	  -mprefer-vector-width=512 -fopt-info-vec -g -lCLHEP-Random-2.4.5.1 -L$(CLHEP_PATH)/lib
 endif
@@ -25,13 +25,13 @@ ifeq ($(COMPILER), intel)
 	CC = icpc
 	CXXFLAGS += -std=c++11 -O3 -qopenmp -xHost \
 	  -qopt-zmm-usage=high -qopt-report=5 \
-	  -I$(CUDA_PATH)/include -I$(CLHEP_PATH)/include -g -DUSE_GPU 
+	  -I$(CUDA_PATH)/include -I$(CLHEP_PATH)/include -g -DUSE_GPU -DGPU_TIMER
 	LDFLAGS += -std=c++11 -O3 -qopenmp -xHost \
 	  -qopt-zmm-usage=high -qopt-report=5 -g -lCLHEP-Random-2.4.5.1 -L$(CLHEP_PATH)/lib
 endif
 
 NVCC = nvcc
-CUDAFLAGS += -std=c++17 -O3 -g --default-stream per-thread -arch=$(GPUARCH) --ptxas-options=-v -lineinfo --maxrregcount 32
+CUDAFLAGS += -std=c++17 -O3 -g --default-stream per-thread -arch=$(GPUARCH) --ptxas-options=-v -lineinfo -use_fast_math #--maxrregcount 32
 CUDALDFLAGS += -lcudart -L$(CUDA_PATH)/lib64
 
 ifeq ($(COMPILER), intel)

@@ -6,9 +6,7 @@
 #include <curand_kernel.h>
 #include <curand.h>
 #include "cuda_rt_call.h"
-
-#pragma once 
-
+/*
 __constant__ double chargeSquare;
 __constant__ double ipotFluct;
 __constant__ double electronDensity;
@@ -34,6 +32,15 @@ __constant__ double nmaxCont2;
 
 __constant__ double electron_mass_c2_d;
 __constant__ double twopi_mc2_rcl2_d;
+*/
+typedef struct {
+  float memTransHDTime;
+  float memTransDHTime;
+  float memAllocTime;
+  float memFreeTime;
+  float kernelTime;
+  cudaEvent_t start, stop;
+} gpu_timing_t;
 
 void getSamples(const long* seed_d,
                 const int *numSegs_d,
@@ -43,20 +50,10 @@ void getSamples(const long* seed_d,
                 const double *seglen_d,
                 const double *segeloss_d,
                 curandState_t *states,
-                double *fluct_d,
+                double *fluctSum_d,
                 int SIZE);
-/*
-__global__ void init_states(long* seed_d, curandState_t* states, int SIZE);
-	   
-	   
-__global__ void sampleFluctuations_kernel(const int *numSegs_d, 
-	                                  const double *mom_d,		
-                                          const double *particleMass_d,
-                                          const double *deltaCutoff_d,
-                                          const double *seglen_d,
-                                          const double *segeloss_d,
-                                          curandState_t *states,
-                                          double *fluct_d,
-                                          int SIZE);
-*/
+
+void initConstMemory(double keV, double proton_mass_c2, double eV, double electron_mass_c2, double twopi_mc2_rcl2);
+
+
 #endif

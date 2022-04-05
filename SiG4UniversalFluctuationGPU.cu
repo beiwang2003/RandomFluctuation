@@ -2,6 +2,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+__constant__ double chargeSquare;
+__constant__ double ipotFluct;
+__constant__ double electronDensity;
+
+__constant__ double f1Fluct;
+__constant__ double f2Fluct;
+__constant__ double e1Fluct;
+__constant__ double e2Fluct;
+__constant__ double rateFluct;
+__constant__ double e1LogFluct;
+__constant__ double e2LogFluct;
+__constant__ double ipotLogFluct;
+__constant__ double e0;
+
+__constant__ double minNumberInteractionsBohr;
+__constant__ double theBohrBeta2;
+__constant__ double minLoss;
+__constant__ double problim;
+__constant__ double sumalim;
+__constant__ double alim;
+__constant__ double nmaxCont1;
+__constant__ double nmaxCont2;
+
+__constant__ double electron_mass_c2_d;
+__constant__ double twopi_mc2_rcl2_d;
+
 /* this GPU kernel function is used to initialize the random states */
 __global__ void init_states(const long* seed_d, curandState_t* states, int SIZE) {
 
@@ -17,7 +43,7 @@ __global__ void init_states(const long* seed_d, curandState_t* states, int SIZE)
 
 /* replace random number generator function calls from CLHEP with curand. For more info about random number generator from curand library, see: https://docs.nvidia.com/cuda/curand/device-api-overview.html#distributions
 E.g.: replace CLHEP::RandFlat with curand_uniform_double (return double between 0.0-1.0)
-      replace CLHEP::RandGaussQ with curand_log_normal_double (This function returns a double log-normally distributed float based on a normal distribution with the given mean and standard deviation)
+      replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
       replace CLHEP::RandPoissonQ with curand_poisson (return unsigned int)
 For more info about random number generator from curand library, see: https://docs.nvidia.com/cuda/curand/device-api-overview.html#distributions
       replace vdt::fast_log with log
@@ -30,7 +56,7 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 					  const double *seglen_d,
 					  const double *segeloss_d,
 					  curandState_t *states,
-					  double *fluct_d,
+					  double *fluctSum_d,
 					  int SIZE) {
   // Calculate actual loss from the mean loss.
   // The model used to get the fluctuations is essentially the same
@@ -42,6 +68,7 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (gid < SIZE) {
+    double sum = 0.0;
     int numSegs = numSegs_d[gid];
     const double momentum = mom_d[gid];
     const double mass = particleMass_d[gid];
@@ -49,12 +76,12 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
     const double length = seglen_d[gid];
     const double meanLoss = segeloss_d[gid];
     curandState_t localState = states[gid];
-
-    for (int i=0; i<numSegs; i++) {
+    int niter = numSegs;
+    for (int i=0; i<niter; i++) {
 
       if (meanLoss < minLoss) {
-	fluct_d[gid] = meanLoss*0.001;
-	return;
+	sum += meanLoss*0.001;
+	continue;
       }
 
       double particleMass = mass;
@@ -76,6 +103,7 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	  siga = (1.0 / beta2 - 0.5) * twopi_mc2_rcl2_d * tmax * length * electronDensity * chargeSquare;
 	  siga = sqrt(siga);
 	  double twomeanLoss = meanLoss + meanLoss;
+
 	  if (twomeanLoss < siga) {
 	    double x;
 	    do {
@@ -87,16 +115,20 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	      //} while (1.0 - 0.5 * x * x < CLHEP::RandFlat::shoot(engine));
 	    } while (1.0 - 0.5 * x * x < curand_uniform_double(&localState));
 	  } else {
+
 	    do {
-	      // bwang 04/04/22: replace CLHEP::RandGaussQ with curand_log_normal_double
+	      // bwang 04/04/22: replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
 	      //loss = CLHEP::RandGaussQ::shoot(engine, meanLoss, siga);
-	      loss = curand_log_normal_double(&localState, meanLoss, siga);
+	      loss = curand_normal_double(&localState) * siga + meanLoss;
 	    } while (loss < 0. || loss > twomeanLoss);
+
 	  }
-	  fluct_d[gid] = loss*0.001;
-	  return;
+
+	  sum += loss*0.001;
+	  continue;
 	}
       }
+
 
       double a1 = 0., a2 = 0., a3 = 0.;
       double p3;
@@ -130,15 +162,16 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
       //std::cout << "suma " << suma << std::endl;
       // Glandz regime
       //
+
       if (suma > sumalim) {
 	if ((a1 + a2) > 0.) {
 	  double p1, p2;
 	  // excitation type 1
 	  if (a1 > alim) {
 	    siga = sqrt(a1);
-	    // bwang 04/04/22: replace CLHEP::RandGaussQ with curand_log_normal_double
+	    // bwang 04/04/22: replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
 	    // p1 = max(0., CLHEP::RandGaussQ::shoot(engine, a1, siga) + 0.5);
-	    p1 = max(0., curand_log_normal_double(&localState, a1, siga) + 0.5);
+	    p1 = max(0., (curand_normal_double(&localState) * siga + a1) + 0.5);
 	  } else {
 	    // bwang 04/04/22: replace CLHEP::RandPoissonQ with curand_poisson
 	    //p1 = double(CLHEP::RandPoissonQ::shoot(engine, a1));
@@ -148,9 +181,9 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	  // excitation type 2
 	  if (a2 > alim) {
 	    siga = sqrt(a2);
-	    // bwang 04/04/22: replace CLHEP::RandGaussQ with curand_log_normal_double
+	    // bwang 04/04/22: replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
 	    //p2 = max(0., CLHEP::RandGaussQ::shoot(engine, a2, siga) + 0.5);
-	    p2 = max(0., curand_log_normal_double(&localState,a2, siga) + 0.5);
+	    p2 = max(0., (curand_normal_double(&localState) * siga + a2) + 0.5);
 	  } else {
 	    // bwang 04/04/22: replace CLHEP::RandPoissonQ with curand_poisson
 	    //p2 = double(CLHEP::RandPoissonQ::shoot(engine, a2));
@@ -176,9 +209,9 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	if (a3 > 0.) {
 	  if (a3 > alim) {
 	    siga = sqrt(a3);
-	    // bwang 04/04/22: replace CLHEP::RandGaussQ with curand_log_normal_double
+	    // bwang 04/04/22: replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
 	    //p3 = max(0., CLHEP::RandGaussQ::shoot(engine, a3, siga) + 0.5);
-	    p3 = max(0., curand_log_normal_double(&localState,a3, siga) + 0.5);
+	    p3 = max(0., (curand_normal_double(&localState) * siga + a3) + 0.5);
 	  } else {
 	    // bwang 04/04/22: replace CLHEP::RandPoissonQ with curand_poisson
 	    //p3 = double(CLHEP::RandPoissonQ::shoot(engine, a3));
@@ -186,6 +219,7 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	  }
 	  //std::cout << "p3 " << std::endl;
 	  double lossc = 0.;
+
 	  if (p3 > 0) {
 	    double na = 0.;
 	    double alfa = 1.;
@@ -193,9 +227,9 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	      double rfac = p3 / (nmaxCont2 + p3);
 	      double namean = p3 * rfac;
 	      double sa = nmaxCont1 * rfac;
-	      // bwang 04/04/22: replace CLHEP::RandGaussQ with curand_log_normal_double
+	      // bwang 04/04/22: replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
 	      //na = CLHEP::RandGaussQ::shoot(engine, namean, sa);
-	      na = curand_log_normal_double(&localState, namean, sa);
+	      na = curand_normal_double(&localState) * sa + namean;
 	      if (na > 0.) {
 		alfa = w1 * (nmaxCont2 + p3) / (w1 * nmaxCont2 + p3);
 		// bwang 04/04/22: replace vdt::fast_log with log
@@ -204,7 +238,7 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 		double ea = na * ipotFluct * alfa1;
 		double sea = ipotFluct * sqrt(na * (alfa - alfa1 * alfa1));
 		//lossc += CLHEP::RandGaussQ::shoot(engine, ea, sea);
-		lossc += curand_log_normal_double(&localState, ea, sea);
+		lossc += curand_normal_double(&localState) * sea + ea;
 	      }
 	    }
 
@@ -212,18 +246,22 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	      w2 = alfa * ipotFluct;
 	      double w = (tmax - w2) / tmax;
 	      int nb = int(p3 - na);
+
 	      for (int k = 0; k < nb; k++)
 		// bwang 04/04/22: replace CLHEP::RandFlat with curand_uniform_double
 		//lossc += w2 / (1. - w * CLHEP::RandFlat::shoot(engine));
 		lossc += w2 / (1. - w * curand_uniform_double(&localState));
 	    }
+
 	  }
+
 	  loss += lossc;
 	}
 
-	fluct_d[gid] = loss * 0.001;
-	return;
+	sum += loss * 0.001;
+	continue;
       }
+
       //std::cout << "verysmall \n";
       // suma < sumalim;  very small energy loss;
       // bwang 04/04/22: replace vdt::fast_log with log
@@ -231,9 +269,9 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
       a3 = meanLoss * (tmax - e0) / (tmax * e0 * log(tmax / e0));
       if (a3 > alim) {
 	siga = sqrt(a3);
-	// bwang 04/04/22: replace CLHEP::RandGaussQ with curand_log_normal_double
+	// bwang 04/04/22: replace CLHEP::RandGaussQ with a SHIFT and SCALE curand_normal_double
 	//p3 = max(0., CLHEP::RandGaussQ::shoot(engine, a3, siga) + 0.5);
-	p3 = max(0., curand_log_normal_double(&localState, a3, siga) + 0.5);
+	p3 = max(0., (curand_normal_double(&localState) * siga + a3) + 0.5);
       } else {
 	// bwang 04/04/22: replace CLHEP::RandPoissonQ with curand_poisson
 	//p3 = double(CLHEP::RandPoissonQ::shoot(engine, a3));
@@ -257,14 +295,16 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 	  //loss += e0 * (1. - 2. * CLHEP::RandFlat::shoot(engine));
 	  loss += e0 * (1. - 2. * curand_uniform_double(&localState));
       }
-      fluct_d[gid] = loss * 0.001;
-      return;
+      sum += loss * 0.001;
+      continue;
     }
+
+    fluctSum_d[gid] = sum;
   }
 }
 
-  void getSamples(const long* seed_d,
-                  const int *numSegs_d,
+void getSamples(const long* seed_d,
+		const int *numSegs_d,
 		  const double *mom_d,
 		  const double *particleMass_d,
 		  const double *deltaCutoff_d,
@@ -274,14 +314,66 @@ __global__ void sampleFluctuations_kernel(const int *numSegs_d,
 		  double *fluct_d,
 		  int SIZE) {
 
-    int nthreads = 256;
-    int nblocks = (SIZE + nthreads - 1)/nthreads;
+  int nthreads = 256;
+  int nblocks = (SIZE + nthreads - 1)/nthreads;
 
-    init_states<<<nblocks, nthreads>>>(seed_d, states, SIZE);
-    CUDA_RT_CALL(cudaGetLastError());
+  init_states<<<nblocks, nthreads>>>(seed_d, states, SIZE);
+  CUDA_RT_CALL(cudaGetLastError());
 
-    sampleFluctuations_kernel<<<nblocks, nthreads>>>(numSegs_d, mom_d, particleMass_d, deltaCutoff_d, seglen_d, segeloss_d, states, fluct_d, SIZE);
-    CUDA_RT_CALL(cudaGetLastError());
+  sampleFluctuations_kernel<<<nblocks, nthreads>>>(numSegs_d, mom_d, particleMass_d, deltaCutoff_d, seglen_d, segeloss_d, states, fluct_d, SIZE);
+  CUDA_RT_CALL(cudaGetLastError());
 
-    cudaDeviceSynchronize();
-  }
+  cudaDeviceSynchronize();
+}
+
+void initConstMemory(double keV, double proton_mass_c2, double eV, double electron_mass_c2, double twopi_mc2_rcl2) {
+  // initialize constant variables on the host
+  double chargeSquare_h = 1.0;
+
+  // data members to speed up the fluctuation calculation
+  double ipotFluct_h = 0.0001736;
+  double electronDensity_h = 6.797E+20;
+
+  double f1Fluct_h = 0.8571;
+  double f2Fluct_h = 0.1429;
+  double e1Fluct_h = 0.000116;
+  double e2Fluct_h =  0.00196;
+  double rateFluct_h = 0.4;
+  double e1LogFluct_h = -9.063;
+  double e2LogFluct_h = -6.235;
+  double ipotLogFluct_h = -8.659;
+  double e0_h = 1.E-5;
+
+  double minNumberInteractionsBohr_h = 10.0;
+  double theBohrBeta2_h = 50.0 * keV / proton_mass_c2;
+  double minLoss_h = 10.0 * eV;
+  double problim_h = 5.e-3;
+  double sumalim_h = -log(problim_h);
+  double alim_h = 10.;
+  double nmaxCont1_h = 4.;
+  double nmaxCont2_h = 16.;
+  double electron_mass_c2_h = electron_mass_c2;
+  double twopi_mc2_rcl2_h = twopi_mc2_rcl2;
+
+  CUDA_RT_CALL(cudaMemcpyToSymbol(chargeSquare, &chargeSquare_h, sizeof(double), 0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(ipotFluct,&ipotFluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(electronDensity,&electronDensity_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(f1Fluct,&f1Fluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(f2Fluct,&f2Fluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(e1Fluct,&e1Fluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(e2Fluct,&e2Fluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(rateFluct,&rateFluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(e1LogFluct,&e1LogFluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(e2LogFluct,&e2LogFluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(ipotLogFluct,&ipotLogFluct_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(e0,&e0_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(minNumberInteractionsBohr,&minNumberInteractionsBohr_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(theBohrBeta2,&theBohrBeta2_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(minLoss,&minLoss_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(problim,&problim_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(sumalim,&sumalim_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(nmaxCont1,&nmaxCont1_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(nmaxCont2,&nmaxCont2_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(electron_mass_c2_d,&electron_mass_c2_h,sizeof(double),0, cudaMemcpyHostToDevice));
+  CUDA_RT_CALL(cudaMemcpyToSymbol(twopi_mc2_rcl2_d,&twopi_mc2_rcl2_h,sizeof(double),0, cudaMemcpyHostToDevice));
+}
